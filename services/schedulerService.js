@@ -11,15 +11,15 @@ const calculateCronExpression = (delayMinutes) => {
     };
 };
 
-const sendMessagesToRecipients = async (message) => {
-    const messagePromises = config.recipientNumbers.map(recipientNumber => 
+const sendMessagesToRecipients = async (senderNumber, message) => {
+    const messagePromises = senderNumber.map(recipientNumber => 
         twilioService.sendMessage(recipientNumber, message)
     );
 
     return Promise.all(messagePromises);
 };
 
-const scheduleMessage = async (message, delayMinutes = 1) => {
+const scheduleMessage = async (senderNumber,message, delayMinutes = 1) => {
     if (!message) {
         throw new Error('Message is required');
     }
@@ -33,7 +33,7 @@ const scheduleMessage = async (message, delayMinutes = 1) => {
 
         const job = cron.schedule(cronExpression, async () => {
             try {
-                await sendMessagesToRecipients(message);
+                await sendMessagesToRecipients(senderNumber,message);
             } catch (error) {
                 console.error('Error sending scheduled messages:', error);
                 throw error;

@@ -20,7 +20,7 @@ const handleWebhook = async (req, res) => {
                 senderNumber,
                 templates.scheduledConfirmation
             );
-            await schedulerService.scheduleMessage(
+            await schedulerService.scheduleMessage([senderNumber],
                 'This is a scheduled message that comes 1 minute after you send \'schedule\' message'
             );
         } else {
