@@ -7,19 +7,11 @@ const handleWebhook = async (req, res) => {
     const incomingMsg = req?.body?.Body;
     const senderNumber = req?.body?.From;
 
-    console.log("request: ", req)
-
     if (!senderNumber) {
       return res.status(400).json({
         status: "error",
         message: "Missing required fields",
       });
-    }
-    if (req.body.Latitude && req.body.Longitude) {
-      return twilioService.sendMessage(
-        senderNumber,
-        `Your latitude is : ${req.body.Latitude} and longitude is: ${req.body.Longitude}`
-      );
     }
     if (incomingMsg.toLowerCase().includes("schedule")) {
       await twilioService.sendMessage(
@@ -31,7 +23,7 @@ const handleWebhook = async (req, res) => {
         "This is a scheduled message that comes 1 minute after you send 'schedule' message"
       );
     } else {
-      await twilioService.handleIncomingMessage(incomingMsg, senderNumber);
+      await twilioService.handleIncomingMessage(req, incomingMsg, senderNumber);
     }
 
     return res.status(200).json({
