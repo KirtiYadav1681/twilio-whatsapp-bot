@@ -60,6 +60,9 @@ const handleWelcomeMessage = async (senderNumber) => {
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_SERVICE_TEMPLATE_ID,
+    variables: JSON.stringify({
+      1: senderNumber,
+    }),
   });
 };
 
@@ -83,29 +86,11 @@ const handlePlumbingService = async (senderNumber, location) => {
     location,
   });
 
-  // Format plumbers into numbered options
-  const plumberOptions = plumbers.map(
-    (plumber, index) =>
-      `${index + 1}. ${plumber.name} - ${plumber.rating}★ (${
-        plumber.distance
-      }km away)`
-  );
-
-  return client.messages.create({
-    from: config.fromNumber,
+  return sendMessage({
     to: senderNumber,
-    body: `Available plumbers in your area:\n\n${plumberOptions.join(
-      "\n"
-    )}\n\nReply with the number to select a plumber.`,
+    sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
+    variables: JSON.stringify(templateVariables),
   });
-
-  // return client.messages.create(message);
-
-  // return sendMessage({
-  //   to: senderNumber,
-  //   sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
-  //   variables: JSON.stringify(templateVariables),
-  // });
 };
 
 const handlePlumberSelection = async (senderNumber, plumberId) => {
@@ -215,8 +200,8 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
     const msg = incomingMsg.toLowerCase();
     const userState = userStates.get(senderNumber) || { stage: "new" };
     if (msg.includes("hello") || msg.includes("hi")) {
-      // return handleWelcomeMessage(senderNumber);
-      return handlePlumbingService(senderNumber);
+      return handleWelcomeMessage(senderNumber);
+      // return handlePlumbingService(senderNumber);
     }
 
     if (req.body.ListId && userState.stage === "awaiting_service_selection") {
