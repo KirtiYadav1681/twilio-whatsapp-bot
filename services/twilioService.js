@@ -27,7 +27,7 @@ const validateMessageParams = (params) => {
   };
 };
 
-const sendMessage = async ({ to, body, sid }) => {
+const sendMessage = async ({ to, body, sid, variables }) => {
   const validation = validateMessageParams({ to, body, sid });
   if (!validation.isValid) {
     throw new Error(
@@ -43,6 +43,10 @@ const sendMessage = async ({ to, body, sid }) => {
 
     if (sid) {
       messageParams.contentSid = sid;
+      // Add variables for template if they exist
+      if (variables) {
+        messageParams.contentVariables = JSON.stringify(variables);
+      }
     } else {
       messageParams.body = body;
     }
@@ -61,7 +65,7 @@ const handleWelcomeMessage = async (senderNumber) => {
     to: senderNumber,
     sid: process.env.TWILIO_SERVICE_TEMPLATE_ID,
     variables: {
-      "1": senderNumber  // Make sure the key is a string
+      "1": senderNumber
     }
   });
 };
