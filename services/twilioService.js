@@ -100,11 +100,36 @@ const listMessage = {
   }
 };
 
-return client.messages.create({
-  from: config.fromNumber,
+const message = {
+  from:config.fromNumber,
   to: senderNumber,
-  ...listMessage
-});
+  body: "Please select a plumber from the list below:",
+  // Interactive message components
+  components: [{
+    type: "list",
+    header: {
+      type: "text",
+      text: "Available Plumbers"
+    },
+    body: {
+      text: "Choose a plumber from the options below:"
+    },
+    action: {
+      button: "View Plumbers",
+      sections: [{
+        title: "Available Plumbers",
+        rows: plumbers.map((plumber, index) => ({
+          id: `plumber_${index + 1}`,
+          title: plumber.name,
+          description: `${plumber.rating}★ (${plumber.distance}km away)`
+        }))
+      }]
+    }
+  }]
+};
+
+
+return client.messages.create(message);
 
   // return sendMessage({
   //   to: senderNumber,
