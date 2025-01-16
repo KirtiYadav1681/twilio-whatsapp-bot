@@ -77,25 +77,25 @@ const handleLocationRequest = async (senderNumber, selectedService) => {
 };
 const createInteractiveList = async () => {
   const twilioListPicker = {
-    body: "Available Plumbing Services!", // Variable for location/date
+    body: "Available Plumbing Services for {{1}}!", // Variable for location/date
     button: "Select Service",
     items: [
       {
         item: "Emergency Plumbing",
         description: "24/7 emergency plumbing services",
-        id: "EMER001"
+        id: "EMER001",
       },
       {
         item: "Pipe Repair",
         description: "Fix leaks and broken pipes",
-        id: "PIPE001"
+        id: "PIPE001",
       },
       {
         item: "Drain Cleaning",
         description: "Professional drain unclogging",
-        id: "DRAIN001"
-      }
-    ]
+        id: "DRAIN001",
+      },
+    ],
   };
 
   try {
@@ -103,20 +103,19 @@ const createInteractiveList = async () => {
       friendlyName: "plumbing_services_list",
       language: "en",
       types: {
-        twilioListPicker
+        twilioListPicker,
       },
       variables: {
-        "1": "location"
-      }
+        1: "location",
+      },
     });
 
     return content.sid;
   } catch (error) {
-    console.error('Error creating content:', error);
+    console.error("Error creating content:", error);
     throw error;
   }
 };
-
 const handlePlumbingService = async (senderNumber, location) => {
   userStates.set(senderNumber, {
     stage: "awaiting_plumber_selection",
@@ -124,22 +123,10 @@ const handlePlumbingService = async (senderNumber, location) => {
     location,
   });
 
-  const contentSid = await createInteractiveList();
-
-  // Send the interactive message
-  return client.messages.create({
-    contentSid: contentSid,
-    from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-    to: `whatsapp:${senderNumber}`,
-    contentVariables: JSON.stringify({
-      "1": location
-    })
+  return sendMessage({
+    to: senderNumber,
+    sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
   });
-  
-  // return sendMessage({
-  //   to: senderNumber,
-  //   sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
-  // });
 };
 
 const handlePlumberSelection = async (senderNumber, plumberId) => {
@@ -161,31 +148,35 @@ const handlePlumberSelection = async (senderNumber, plumberId) => {
 };
 
 const handleFormSubmission = async (senderNumber, formData) => {
-  const userState = userStates.get(senderNumber);
-  if (userState) {
-    userState.stage = "awaiting_slot_selection";
-    userState.formData = formData;
-    userStates.set(senderNumber, userState);
+  const userState = userStates.get(senderNumber) || {
+    stage: "awaiting_slot_selection",
+  };
+  // if (userState) {
+  userState.stage = "awaiting_slot_selection";
+  userState.formData = formData;
+  userStates.set(senderNumber, userState);
 
-    const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
-    return sendMessage({
-      to: senderNumber,
-      sid: process.env.TWILIO_SLOTS_TEMPLATE_ID,
-      variables: JSON.stringify({
-        date: formData.preferredDate,
-        1: availableSlots[0],
-        2: availableSlots[1],
-        3: availableSlots[2],
-        4: availableSlots[3],
-      }),
-    });
-  } else {
-    return handleWelcomeMessage(senderNumber);
-  }
+  const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
+  return sendMessage({
+    to: senderNumber,
+    sid: process.env.TWILIO_SLOTS_TEMPLATE_ID,
+    variables: {
+      date: formData.preferredDate,
+      1: availableSlots[0],
+      2: availableSlots[1],
+      3: availableSlots[2],
+      4: availableSlots[3],
+    },
+  });
+  // } else {
+  // return handleWelcomeMessage(senderNumber);
+  // }
 };
 
 const handleSlotSelection = async (senderNumber, selectedSlot) => {
-  const userState = userStates.get(senderNumber);
+  const userState = userStates.get(senderNumber) || {
+    stage: "awaiting_payment_choice",
+  };
   userState.stage = "awaiting_payment_choice";
   userState.selectedSlot = selectedSlot;
   userStates.set(senderNumber, userState);
@@ -197,30 +188,29 @@ const handleSlotSelection = async (senderNumber, selectedSlot) => {
 
 const handlePaymentChoice = async (senderNumber, choice) => {
   const userState = userStates.get(senderNumber);
-  const redirectUrl =
-    choice === "pay_now"
-      ? process.env.PAYMENT_GATEWAY_URL
-      : process.env.BOOKING_CONFIRMATION_URL;
+  // const redirectUrl =
+  //   choice === "pay_now"
+  //     ? process.env.PAYMENT_GATEWAY_URL
+  //     : process.env.BOOKING_CONFIRMATION_URL;
   userState.stage = "booking_completed";
   userState.paymentChoice = choice;
   userStates.set(senderNumber, userState);
-  await sendMessage({
-    to: senderNumber,
-    sid: process.env.TWILIO_REDIRECT_TEMPLATE_ID,
-    variables: JSON.stringify({
-      1: redirectUrl,
-    }),
-  });
+  // await sendMessage({
+  //   to: senderNumber,
+  //   sid: process.env.TWILIO_REDIRECT_TEMPLATE_ID,
+  //   variables: JSON.stringify({
+  //     1: redirectUrl,
+  //   }),
+  // });
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_BOOKING_CONFIRMATION_TEMPLATE_ID,
-    variables: JSON.stringify({
-      date: userState.formData.preferredDate,
-      time: userState.selectedSlot,
-      plumber: `Plumber ${userState.selectedPlumber}`,
-      paymentStatus:
-        choice === "pay_now" ? "Payment Pending" : "Pay at Service",
-    }),
+    variables: {
+      1: `Plumber ${userState?.selectedPlumber}`,
+      2: userState?.formData?.preferredDate,
+      3: userState?.selectedSlot,
+      4: choice === "pay_now" ? "Payment Pending" : "Pay at Service",
+    },
   });
 };
 
@@ -266,9 +256,9 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
 
       // userStates.delete(senderNumber);
       switch (userState.selectedService) {
-        case "plumbing":
+        case "service_1":
           return handlePlumbingService(senderNumber, location);
-        case "electric":
+        case "service_2":
           return handleElectricService(senderNumber, location);
         default:
           return handleDefaultResponse(senderNumber);

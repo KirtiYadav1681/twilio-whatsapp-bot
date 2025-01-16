@@ -15,7 +15,7 @@ app.use("/", webhookRoutes);
 
 app.get("/form", (req, res) => {
   const senderNumber = req.query.number;
-  res.render("form", { senderNumber });
+  res.render("form", { number: senderNumber });
 });
 
 const PORT = process.env.PORT || 8888;

@@ -27,14 +27,12 @@ const handleWebhook = async (req, res) => {
 };
 
 const handleFormSubmit = async (req,res) => {
-  const { name, address, date } = req.body;
-  console.log(">>>>>>>>", req.body)
-  const senderNumber = req.query.number;
-
+  const { name, address, date, number } = req.body
+  
   const formData = { name, address, preferredDate: date };
 
   try {
-    await twilioService.handleFormSubmission(senderNumber, formData);
+    await twilioService.handleFormSubmission(number, formData);
     res.send("Thank you! Your form has been submitted.");
   } catch (error) {
     console.error("Error handling form submission:", error);

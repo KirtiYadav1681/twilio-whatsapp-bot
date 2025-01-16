@@ -8,6 +8,8 @@
 <body>
   <h1>Service Request Form</h1>
   <form action="/submit-form" method="POST">
+    <input type="hidden" name="number" value="<%= number %>">
+
     <label for="name">Name:</label>
     <input type="text" id="name" name="name" required>
     <br><br>
