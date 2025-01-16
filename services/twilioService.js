@@ -70,10 +70,134 @@ const handleLocationRequest = async (senderNumber, selectedService) => {
   });
 };
 
+const plumbers = [
+  { id: 1, name: "Plumber One", rating: 4.5, distance: 2 },
+  { id: 2, name: "Plumber Two", rating: 4.8, distance: 3 },
+  { id: 3, name: "Plumber Three", rating: 4.2, distance: 3.5 },
+];
+
 const handlePlumbingService = async (senderNumber, location) => {
+  userStates.set(senderNumber, {
+    stage: "awaiting_plumber_selection",
+    selectedService: "plumbing",
+    location,
+  });
+
+// Create the interactive list message structure
+const listMessage = {
+  to: senderNumber,
+  body: "Please select a plumber from the list below:",
+  list: {
+    button: "View Plumbers",  // Text that appears on the main button
+    sections: [{
+      title: "Available Plumbers",
+      rows: plumbers.map((plumber, index) => ({
+        id: `plumber_${index + 1}`,  // Unique identifier for each option
+        title: plumber.name,
+        description: `${plumber.rating}★ (${plumber.distance}km away)`
+      }))
+    }]
+  }
+};
+
+return client.messages.create({
+  from: config.fromNumber,
+  to: senderNumber,
+  ...listMessage
+});
+
+  // return sendMessage({
+  //   to: senderNumber,
+  //   sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
+  //   variables: JSON.stringify(templateVariables),
+  // });
+};
+
+const handlePlumberSelection = async (senderNumber, plumberId) => {
+  const userState = userStates.get(senderNumber);
+  userState.selectedPlumber = plumberId;
+  userState.stage = "awaiting_form_submission";
+  userStates.set(senderNumber, userState);
+
+  // Send Google Form link
   return sendMessage({
     to: senderNumber,
-    sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
+    sid: process.env.TWILIO_FORM_TEMPLATE_ID,
+    variables: JSON.stringify({
+      1: "https://forms.gle/your-form-url",
+      2: "Once you've submitted the form, please reply with 'FORM SUBMITTED'",
+    }),
+  });
+};
+
+const handleFormSubmission = async (senderNumber, formData) => {
+  const userState = userStates.get(senderNumber);
+  userState.stage = "awaiting_slot_selection";
+  userState.formData = formData;
+  userStates.set(senderNumber, userState);
+
+  // Get available slots for the date from form
+  const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
+
+  // Send template with available slots
+  return sendMessage({
+    to: senderNumber,
+    sid: process.env.TWILIO_SLOTS_TEMPLATE_ID,
+    variables: JSON.stringify({
+      date: formData.preferredDate,
+      1: availableSlots[0],
+      2: availableSlots[1],
+      3: availableSlots[2],
+      4: availableSlots[3],
+    }),
+  });
+};
+
+const handleSlotSelection = async (senderNumber, selectedSlot) => {
+  const userState = userStates.get(senderNumber);
+  userState.stage = "awaiting_payment_choice";
+  userState.selectedSlot = selectedSlot;
+  userStates.set(senderNumber, userState);
+
+  // Send payment options template
+  return sendMessage({
+    to: senderNumber,
+    sid: process.env.TWILIO_PAYMENT_OPTIONS_TEMPLATE_ID,
+  });
+};
+
+const handlePaymentChoice = async (senderNumber, choice) => {
+  const userState = userStates.get(senderNumber);
+  const redirectUrl =
+    choice === "pay_now"
+      ? process.env.PAYMENT_GATEWAY_URL
+      : process.env.BOOKING_CONFIRMATION_URL;
+
+  // Store the final booking details
+  userState.stage = "booking_completed";
+  userState.paymentChoice = choice;
+  userStates.set(senderNumber, userState);
+
+  // Send redirect template
+  await sendMessage({
+    to: senderNumber,
+    sid: process.env.TWILIO_REDIRECT_TEMPLATE_ID,
+    variables: JSON.stringify({
+      1: redirectUrl,
+    }),
+  });
+
+  // Send booking confirmation after redirect
+  return sendMessage({
+    to: senderNumber,
+    sid: process.env.TWILIO_BOOKING_CONFIRMATION_TEMPLATE_ID,
+    variables: JSON.stringify({
+      date: userState.formData.preferredDate,
+      time: userState.selectedSlot,
+      plumber: `Plumber ${userState.selectedPlumber}`,
+      paymentStatus:
+        choice === "pay_now" ? "Payment Pending" : "Pay at Service",
+    }),
   });
 };
 
@@ -96,7 +220,8 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
     const msg = incomingMsg.toLowerCase();
     const userState = userStates.get(senderNumber) || { stage: "new" };
     if (msg.includes("hello") || msg.includes("hi")) {
-      return handleWelcomeMessage(senderNumber);
+      // return handleWelcomeMessage(senderNumber);
+      return handlePlumbingService(senderNumber)
     }
 
     if (req.body.ListId && userState.stage === "awaiting_service_selection") {
@@ -133,6 +258,32 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
         to: senderNumber,
         body: "Please share your location to proceed with the service request.",
       });
+    }
+
+    if (userState.stage === "awaiting_plumber_selection" && req.body.ListId) {
+      // if (userState.stage === "awaiting_plumber_selection" && req.body.ListId) {
+
+      return handlePlumberSelection(senderNumber, req.body.ListId);
+    }
+
+    if (
+      userState.stage === "awaiting_form_submission" &&
+      msg === "form submitted"
+    ) {
+      // In production, you'd verify form submission through Google Forms API
+      const formData = {
+        preferredDate: "2025-01-16", // This would come from form submission
+      };
+
+      return handleFormSubmission(senderNumber, formData);
+    }
+
+    if (userState.stage === "awaiting_slot_selection" && req.body.ListId) {
+      return handleSlotSelection(senderNumber, req.body.ListId);
+    }
+
+    if (userState.stage === "awaiting_payment_choice" && req.body.ListId) {
+      return handlePaymentChoice(senderNumber, req.body.ListId);
     }
 
     return handleDefaultResponse(senderNumber);
