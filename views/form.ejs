@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Service Form</title>
+</head>
+<body>
+  <h1>Service Request Form</h1>
+  <form action="/submit-form" method="POST">
+    <label for="name">Name:</label>
+    <input type="text" id="name" name="name" required>
+    <br><br>
+
+    <label for="address">Address:</label>
+    <textarea id="address" name="address" required></textarea>
+    <br><br>
+
+    <label for="date">Preferred Date:</label>
+    <input type="date" id="date" name="date" required>
+    <br><br>
+
+    <button type="submit">Submit</button>
+  </form>
+</body>
+</html>

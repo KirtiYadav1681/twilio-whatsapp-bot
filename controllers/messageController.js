@@ -1,6 +1,4 @@
 const twilioService = require("../services/twilioService");
-const schedulerService = require("../services/schedulerService");
-const templates = require("../constants/messageTemplates");
 
 const handleWebhook = async (req, res) => {
   try {
@@ -13,19 +11,7 @@ const handleWebhook = async (req, res) => {
         message: "Missing required fields",
       });
     }
-    if (incomingMsg.toLowerCase().includes("schedule")) {
-      await twilioService.sendMessage(
-        senderNumber,
-        templates.scheduledConfirmation
-      );
-      await schedulerService.scheduleMessage(
-        [senderNumber],
-        "This is a scheduled message that comes 1 minute after you send 'schedule' message"
-      );
-    } else {
-      await twilioService.handleIncomingMessage(req, incomingMsg, senderNumber);
-    }
-
+    await twilioService.handleIncomingMessage(req, incomingMsg, senderNumber);
     return res.status(200).json({
       status: "success",
       message: "Response sent",
@@ -40,6 +26,23 @@ const handleWebhook = async (req, res) => {
   }
 };
 
+const handleFormSubmit = async (req,res) => {
+  const { name, address, date } = req.body;
+  console.log(">>>>>>>>", req.body)
+  const senderNumber = req.query.number;
+
+  const formData = { name, address, preferredDate: date };
+
+  try {
+    await twilioService.handleFormSubmission(senderNumber, formData);
+    res.send("Thank you! Your form has been submitted.");
+  } catch (error) {
+    console.error("Error handling form submission:", error);
+    res.status(500).send("There was an error processing your request.");
+  }
+}
+
 module.exports = {
   handleWebhook,
+  handleFormSubmit
 };

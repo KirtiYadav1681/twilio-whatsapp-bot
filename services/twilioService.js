@@ -64,8 +64,8 @@ const handleWelcomeMessage = async (senderNumber) => {
     to: senderNumber,
     sid: process.env.TWILIO_SERVICE_TEMPLATE_ID,
     variables: {
-      "1": senderNumber.split(':')[1]
-    }
+      1: senderNumber.split(":")[1],
+    },
   });
 };
 
@@ -75,6 +75,47 @@ const handleLocationRequest = async (senderNumber, selectedService) => {
     body: "Please share your location so we can find the nearest service provider.",
   });
 };
+const createInteractiveList = async () => {
+  const twilioListPicker = {
+    body: "Available Plumbing Services!", // Variable for location/date
+    button: "Select Service",
+    items: [
+      {
+        item: "Emergency Plumbing",
+        description: "24/7 emergency plumbing services",
+        id: "EMER001"
+      },
+      {
+        item: "Pipe Repair",
+        description: "Fix leaks and broken pipes",
+        id: "PIPE001"
+      },
+      {
+        item: "Drain Cleaning",
+        description: "Professional drain unclogging",
+        id: "DRAIN001"
+      }
+    ]
+  };
+
+  try {
+    const content = await client.content.v1.contents.create({
+      friendlyName: "plumbing_services_list",
+      language: "en",
+      types: {
+        twilioListPicker
+      },
+      variables: {
+        "1": "location"
+      }
+    });
+
+    return content.sid;
+  } catch (error) {
+    console.error('Error creating content:', error);
+    throw error;
+  }
+};
 
 const handlePlumbingService = async (senderNumber, location) => {
   userStates.set(senderNumber, {
@@ -83,10 +124,22 @@ const handlePlumbingService = async (senderNumber, location) => {
     location,
   });
 
-  return sendMessage({
-    to: senderNumber,
-    sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
+  const contentSid = await createInteractiveList();
+
+  // Send the interactive message
+  return client.messages.create({
+    contentSid: contentSid,
+    from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+    to: `whatsapp:${senderNumber}`,
+    contentVariables: JSON.stringify({
+      "1": location
+    })
   });
+  
+  // return sendMessage({
+  //   to: senderNumber,
+  //   sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
+  // });
 };
 
 const handlePlumberSelection = async (senderNumber, plumberId) => {
@@ -94,35 +147,41 @@ const handlePlumberSelection = async (senderNumber, plumberId) => {
   userState.selectedPlumber = plumberId;
   userState.stage = "awaiting_form_submission";
   userStates.set(senderNumber, userState);
+  const formUrl = `${process.env.SERVER_URL}/form?number=${encodeURIComponent(
+    senderNumber
+  )}`;
 
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_FORM_TEMPLATE_ID,
-    variables: JSON.stringify({
-      1: "https://forms.gle/your-form-url",
-      2: "Once you've submitted the form, please reply with 'FORM SUBMITTED'",
-    }),
+    variables: {
+      1: formUrl,
+    },
   });
 };
 
 const handleFormSubmission = async (senderNumber, formData) => {
   const userState = userStates.get(senderNumber);
-  userState.stage = "awaiting_slot_selection";
-  userState.formData = formData;
-  userStates.set(senderNumber, userState);
+  if (userState) {
+    userState.stage = "awaiting_slot_selection";
+    userState.formData = formData;
+    userStates.set(senderNumber, userState);
 
-  const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
-  return sendMessage({
-    to: senderNumber,
-    sid: process.env.TWILIO_SLOTS_TEMPLATE_ID,
-    variables: JSON.stringify({
-      date: formData.preferredDate,
-      1: availableSlots[0],
-      2: availableSlots[1],
-      3: availableSlots[2],
-      4: availableSlots[3],
-    }),
-  });
+    const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
+    return sendMessage({
+      to: senderNumber,
+      sid: process.env.TWILIO_SLOTS_TEMPLATE_ID,
+      variables: JSON.stringify({
+        date: formData.preferredDate,
+        1: availableSlots[0],
+        2: availableSlots[1],
+        3: availableSlots[2],
+        4: availableSlots[3],
+      }),
+    });
+  } else {
+    return handleWelcomeMessage(senderNumber);
+  }
 };
 
 const handleSlotSelection = async (senderNumber, selectedSlot) => {
@@ -183,6 +242,7 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
   try {
     const msg = incomingMsg.toLowerCase();
     const userState = userStates.get(senderNumber) || { stage: "new" };
+
     if (msg.includes("hello") || msg.includes("hi")) {
       return handleWelcomeMessage(senderNumber);
     }
@@ -204,8 +264,7 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
         longitude: req.body.Longitude,
       };
 
-      userStates.delete(senderNumber);
-
+      // userStates.delete(senderNumber);
       switch (userState.selectedService) {
         case "plumbing":
           return handlePlumbingService(senderNumber, location);
@@ -227,16 +286,16 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
       return handlePlumberSelection(senderNumber, req.body.ListId);
     }
 
-    if (
-      userState.stage === "awaiting_form_submission" &&
-      msg === "form submitted"
-    ) {
-      const formData = {
-        preferredDate: "2025-01-16", 
-      };
+    // if (
+    //   userState.stage === "awaiting_form_submission" &&
+    //   msg === "form submitted"
+    // ) {
+    //   const formData = {
+    //     preferredDate: "2025-01-16",
+    //   };
 
-      return handleFormSubmission(senderNumber, formData);
-    }
+    //   return handleFormSubmission(senderNumber, formData);
+    // }
 
     if (userState.stage === "awaiting_slot_selection" && req.body.ListId) {
       return handleSlotSelection(senderNumber, req.body.ListId);
@@ -273,6 +332,7 @@ const formatPhoneNumber = (number) => {
 module.exports = {
   sendMessage,
   handleIncomingMessage,
+  handleFormSubmission,
   checkClientStatus,
   formatPhoneNumber,
   validateMessageParams,
