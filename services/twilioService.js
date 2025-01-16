@@ -60,9 +60,9 @@ const handleWelcomeMessage = async (senderNumber) => {
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_SERVICE_TEMPLATE_ID,
-    variables: JSON.stringify({
-      1: senderNumber,
-    }),
+    variables: {
+      "1": senderNumber  // Make sure the key is a string
+    }
   });
 };
 
