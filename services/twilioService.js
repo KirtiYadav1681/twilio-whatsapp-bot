@@ -43,7 +43,6 @@ const sendMessage = async ({ to, body, sid, variables }) => {
 
     if (sid) {
       messageParams.contentSid = sid;
-      // Add variables for template if they exist
       if (variables) {
         messageParams.contentVariables = JSON.stringify(variables);
       }
@@ -65,7 +64,7 @@ const handleWelcomeMessage = async (senderNumber) => {
     to: senderNumber,
     sid: process.env.TWILIO_SERVICE_TEMPLATE_ID,
     variables: {
-      "1": senderNumber
+      "1": senderNumber.split(':')[1]
     }
   });
 };
@@ -77,12 +76,6 @@ const handleLocationRequest = async (senderNumber, selectedService) => {
   });
 };
 
-const plumbers = [
-  { id: 1, name: "Plumber One", rating: 4.5, distance: 2 },
-  { id: 2, name: "Plumber Two", rating: 4.8, distance: 3 },
-  { id: 3, name: "Plumber Three", rating: 4.2, distance: 3.5 },
-];
-
 const handlePlumbingService = async (senderNumber, location) => {
   userStates.set(senderNumber, {
     stage: "awaiting_plumber_selection",
@@ -93,7 +86,6 @@ const handlePlumbingService = async (senderNumber, location) => {
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
-    variables: JSON.stringify(templateVariables),
   });
 };
 
@@ -103,7 +95,6 @@ const handlePlumberSelection = async (senderNumber, plumberId) => {
   userState.stage = "awaiting_form_submission";
   userStates.set(senderNumber, userState);
 
-  // Send Google Form link
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_FORM_TEMPLATE_ID,
@@ -120,10 +111,7 @@ const handleFormSubmission = async (senderNumber, formData) => {
   userState.formData = formData;
   userStates.set(senderNumber, userState);
 
-  // Get available slots for the date from form
   const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
-
-  // Send template with available slots
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_SLOTS_TEMPLATE_ID,
@@ -142,8 +130,6 @@ const handleSlotSelection = async (senderNumber, selectedSlot) => {
   userState.stage = "awaiting_payment_choice";
   userState.selectedSlot = selectedSlot;
   userStates.set(senderNumber, userState);
-
-  // Send payment options template
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_PAYMENT_OPTIONS_TEMPLATE_ID,
@@ -156,13 +142,9 @@ const handlePaymentChoice = async (senderNumber, choice) => {
     choice === "pay_now"
       ? process.env.PAYMENT_GATEWAY_URL
       : process.env.BOOKING_CONFIRMATION_URL;
-
-  // Store the final booking details
   userState.stage = "booking_completed";
   userState.paymentChoice = choice;
   userStates.set(senderNumber, userState);
-
-  // Send redirect template
   await sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_REDIRECT_TEMPLATE_ID,
@@ -170,8 +152,6 @@ const handlePaymentChoice = async (senderNumber, choice) => {
       1: redirectUrl,
     }),
   });
-
-  // Send booking confirmation after redirect
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_BOOKING_CONFIRMATION_TEMPLATE_ID,
@@ -205,7 +185,6 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
     const userState = userStates.get(senderNumber) || { stage: "new" };
     if (msg.includes("hello") || msg.includes("hi")) {
       return handleWelcomeMessage(senderNumber);
-      // return handlePlumbingService(senderNumber);
     }
 
     if (req.body.ListId && userState.stage === "awaiting_service_selection") {
@@ -245,8 +224,6 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
     }
 
     if (userState.stage === "awaiting_plumber_selection" && req.body.ListId) {
-      // if (userState.stage === "awaiting_plumber_selection" && req.body.ListId) {
-
       return handlePlumberSelection(senderNumber, req.body.ListId);
     }
 
@@ -254,9 +231,8 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
       userState.stage === "awaiting_form_submission" &&
       msg === "form submitted"
     ) {
-      // In production, you'd verify form submission through Google Forms API
       const formData = {
-        preferredDate: "2025-01-16", // This would come from form submission
+        preferredDate: "2025-01-16", 
       };
 
       return handleFormSubmission(senderNumber, formData);
