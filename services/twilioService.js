@@ -75,47 +75,6 @@ const handleLocationRequest = async (senderNumber, selectedService) => {
     body: "Please share your location so we can find the nearest service provider.",
   });
 };
-const createInteractiveList = async () => {
-  const twilioListPicker = {
-    body: "Available Plumbing Services for {{1}}!", // Variable for location/date
-    button: "Select Service",
-    items: [
-      {
-        item: "Emergency Plumbing",
-        description: "24/7 emergency plumbing services",
-        id: "EMER001",
-      },
-      {
-        item: "Pipe Repair",
-        description: "Fix leaks and broken pipes",
-        id: "PIPE001",
-      },
-      {
-        item: "Drain Cleaning",
-        description: "Professional drain unclogging",
-        id: "DRAIN001",
-      },
-    ],
-  };
-
-  try {
-    const content = await client.content.v1.contents.create({
-      friendlyName: "plumbing_services_list",
-      language: "en",
-      types: {
-        twilioListPicker,
-      },
-      variables: {
-        1: "location",
-      },
-    });
-
-    return content.sid;
-  } catch (error) {
-    console.error("Error creating content:", error);
-    throw error;
-  }
-};
 const handlePlumbingService = async (senderNumber, location) => {
   userStates.set(senderNumber, {
     stage: "awaiting_plumber_selection",
@@ -147,16 +106,15 @@ const handlePlumberSelection = async (senderNumber, plumberId) => {
   });
 };
 
+const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
+
 const handleFormSubmission = async (senderNumber, formData) => {
-  const userState = userStates.get(senderNumber) || {
-    stage: "awaiting_slot_selection",
-  };
+  const userState = userStates.get(senderNumber)
   // if (userState) {
   userState.stage = "awaiting_slot_selection";
   userState.formData = formData;
   userStates.set(senderNumber, userState);
 
-  const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_SLOTS_TEMPLATE_ID,
@@ -206,9 +164,9 @@ const handlePaymentChoice = async (senderNumber, choice) => {
     to: senderNumber,
     sid: process.env.TWILIO_BOOKING_CONFIRMATION_TEMPLATE_ID,
     variables: {
-      1: `Plumber ${userState?.selectedPlumber}`,
+      1: userState?.selectedPlumber,
       2: userState?.formData?.preferredDate,
-      3: userState?.selectedSlot,
+      3: availableSlots[parseInt(userState?.selectedSlot.split("_")[1]) - 1],
       4: choice === "pay_now" ? "Payment Pending" : "Pay at Service",
     },
   });
@@ -253,8 +211,6 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
         latitude: req.body.Latitude,
         longitude: req.body.Longitude,
       };
-
-      // userStates.delete(senderNumber);
       switch (userState.selectedService) {
         case "service_1":
           return handlePlumbingService(senderNumber, location);
@@ -276,23 +232,12 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
       return handlePlumberSelection(senderNumber, req.body.ListId);
     }
 
-    // if (
-    //   userState.stage === "awaiting_form_submission" &&
-    //   msg === "form submitted"
-    // ) {
-    //   const formData = {
-    //     preferredDate: "2025-01-16",
-    //   };
-
-    //   return handleFormSubmission(senderNumber, formData);
-    // }
-
     if (userState.stage === "awaiting_slot_selection" && req.body.ListId) {
       return handleSlotSelection(senderNumber, req.body.ListId);
     }
 
-    if (userState.stage === "awaiting_payment_choice" && req.body.ListId) {
-      return handlePaymentChoice(senderNumber, req.body.ListId);
+    if (userState.stage === "awaiting_payment_choice" && req.body.ButtonPayload) {
+      return handlePaymentChoice(senderNumber, req.body.ButtonPayload);
     }
 
     return handleDefaultResponse(senderNumber);

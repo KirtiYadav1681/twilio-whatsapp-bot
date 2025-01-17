@@ -4,25 +4,135 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Service Form</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f9;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    form {
+      background-color: #fff;
+      padding: 20px 20px 30px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 400px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+      color: #555;
+    }
+
+    input[type="text"], 
+    input[type="date"], 
+    textarea {
+      width: 95%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    /* input:invalid, textarea:invalid {
+      border-color: red;
+    } */
+
+    button {
+      width: 100%;
+      background-color: #141414;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #151414e9;
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 20px;
+      }
+
+      form {
+        padding: 15px;
+      }
+
+      button {
+        font-size: 14px;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>Service Request Form</h1>
-  <form action="/submit-form" method="POST">
+  <form id="serviceForm" action="/submit-form" method="POST" novalidate>
+    <h1>Service Request Form</h1>
     <input type="hidden" name="number" value="<%= number %>">
 
     <label for="name">Name:</label>
-    <input type="text" id="name" name="name" required>
-    <br><br>
+    <input type="text" id="name" name="name" required minlength="3" pattern="[A-Za-z\s]+" title="Name should only contain letters and spaces.">
 
     <label for="address">Address:</label>
-    <textarea id="address" name="address" required></textarea>
-    <br><br>
+    <textarea id="address" name="address" rows="4" required minlength="10" title="Address must be at least 10 characters long."></textarea>
 
     <label for="date">Preferred Date:</label>
-    <input type="date" id="date" name="date" required>
-    <br><br>
+    <input type="date" id="date" name="date" required min="2025-01-17" title="Please select a future date.">
 
     <button type="submit">Submit</button>
   </form>
+
+  <script>
+    document.getElementById('serviceForm').addEventListener('submit', function(event) {
+      const form = event.target;
+      const name = form.name.value.trim();
+      const address = form.address.value.trim();
+      const date = form.date.value;
+
+      let errorMessages = [];
+
+      if (name.length < 3 || !/^[A-Za-z\s]+$/.test(name)) {
+        errorMessages.push("Name must be at least 3 characters long and contain only letters and spaces.");
+      }
+
+      if (address.length < 10) {
+        errorMessages.push("Address must be at least 10 characters long.");
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      if (!date || date < today) {
+        errorMessages.push("Preferred Date must be in the future.");
+      }
+
+      if (errorMessages.length > 0) {
+        event.preventDefault();
+        alert(errorMessages.join('\n'));
+      }
+    });
+  </script>
 </body>
 </html>
