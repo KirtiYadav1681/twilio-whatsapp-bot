@@ -75,6 +75,22 @@ const handleLocationRequest = async (senderNumber, selectedService) => {
     body: "Please share your location so we can find the nearest service provider.",
   });
 };
+const plumbers = [
+  {
+    id: 1,
+    name: "Plumber 1",
+    key: "plumber_1",
+    price: "$100",
+    rating: "4.2⭐",
+  },
+  {
+    id: 2,
+    name: "Plumber 2",
+    key: "plumber_2",
+    price: "$150",
+    rating: "4.7⭐",
+  },
+];
 const handlePlumbingService = async (senderNumber, location) => {
   userStates.set(senderNumber, {
     stage: "awaiting_plumber_selection",
@@ -85,6 +101,16 @@ const handlePlumbingService = async (senderNumber, location) => {
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
+    variables: {
+      1: plumbers[0].name,
+      2: plumbers[0].key,
+      3: plumbers[0].price,
+      4: plumbers[0].rating,
+      5: plumbers[1].name,
+      6: plumbers[1].key,
+      7: plumbers[1].price,
+      8: plumbers[1].rating,
+    },
   });
 };
 
@@ -109,7 +135,7 @@ const handlePlumberSelection = async (senderNumber, plumberId) => {
 const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
 
 const handleFormSubmission = async (senderNumber, formData) => {
-  const userState = userStates.get(senderNumber)
+  const userState = userStates.get(senderNumber);
   // if (userState) {
   userState.stage = "awaiting_slot_selection";
   userState.formData = formData;
@@ -164,7 +190,7 @@ const handlePaymentChoice = async (senderNumber, choice) => {
     to: senderNumber,
     sid: process.env.TWILIO_BOOKING_CONFIRMATION_TEMPLATE_ID,
     variables: {
-      1: userState?.selectedPlumber,
+      1: plumbers[parseInt(userState?.selectedPlumber.split("_")[1]) - 1]?.name,
       2: userState?.formData?.preferredDate,
       3: availableSlots[parseInt(userState?.selectedSlot.split("_")[1]) - 1],
       4: choice === "pay_now" ? "Payment Pending" : "Pay at Service",
@@ -236,7 +262,10 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
       return handleSlotSelection(senderNumber, req.body.ListId);
     }
 
-    if (userState.stage === "awaiting_payment_choice" && req.body.ButtonPayload) {
+    if (
+      userState.stage === "awaiting_payment_choice" &&
+      req.body.ButtonPayload
+    ) {
       return handlePaymentChoice(senderNumber, req.body.ButtonPayload);
     }
 
