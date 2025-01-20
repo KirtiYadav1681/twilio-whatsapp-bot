@@ -2,6 +2,69 @@ const twilio = require("twilio");
 const config = require("../config/twilio.config");
 const templates = require("../constants/messageTemplates");
 
+const serviceConfig = {
+  service_1: {
+    key: "plumbing",
+    serviceTemplateId: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
+    providers: [
+      {
+        id: 1,
+        name: "Plumber 1",
+        key: "plumber_1",
+        price: "$100",
+        rating: "4.2⭐",
+      },
+      {
+        id: 2,
+        name: "Plumber 2",
+        key: "plumber_2",
+        price: "$150",
+        rating: "4.7⭐",
+      },
+    ],
+  },
+  service_2: {
+    key: "electrical",
+    serviceTemplateId: process.env.TWILIO_ELECTRICAL_SERVICE_TEMPLATE_ID,
+    providers: [
+      {
+        id: 1,
+        name: "Electrician 1",
+        key: "electrician_1",
+        price: "$80",
+        rating: "4.5⭐",
+      },
+      {
+        id: 2,
+        name: "Electrician 2",
+        key: "electrician_2",
+        price: "$120",
+        rating: "4.8⭐",
+      },
+    ],
+  },
+  service_3: {
+    key: "ac-srvice",
+    serviceTemplateId: process.env.TWILIO_AC_SERVICE_TEMPLATE_ID,
+    providers: [
+      {
+        id: 1,
+        name: "AC Technician 1",
+        key: "ac_technician_1",
+        price: "$60",
+        rating: "4.3⭐",
+      },
+      {
+        id: 2,
+        name: "AC Technician 1",
+        key: "ac_technician_2",
+        price: "$90",
+        rating: "4.6⭐",
+      },
+    ],
+  },
+};
+
 const userStates = new Map();
 
 const initializeTwilioClient = () => {
@@ -91,6 +154,54 @@ const plumbers = [
     rating: "4.7⭐",
   },
 ];
+
+const handleServiceProviders = async (senderNumber, location, serviceType) => {
+  const service = serviceConfig[serviceType];
+  if (!service) {
+    return handleDefaultResponse(senderNumber);
+  }
+
+  userStates.set(senderNumber, {
+    stage: "awaiting_provider_selection",
+    selectedService: serviceType,
+    location,
+  });
+
+  const providers = service.providers;
+  return sendMessage({
+    to: senderNumber,
+    sid: service.serviceTemplateId,
+    variables: {
+      1: providers[0].name,
+      2: providers[0].key,
+      3: providers[0].price,
+      4: providers[0].rating,
+      5: providers[1].name,
+      6: providers[1].key,
+      7: providers[1].price,
+      8: providers[1].rating,
+    },
+  });
+};
+
+const handleProviderSelection = async (senderNumber, providerId) => {
+  const userState = userStates.get(senderNumber);
+  userState.selectedProvider = providerId;
+  userState.stage = "awaiting_form_submission";
+  userStates.set(senderNumber, userState);
+
+  const formUrl = `${process.env.SERVER_URL}/form?number=${encodeURIComponent(
+    senderNumber
+  )}`;
+
+  return sendMessage({
+    to: senderNumber,
+    sid: process.env.TWILIO_FORM_TEMPLATE_ID,
+    variables: {
+      1: formUrl,
+    },
+  });
+};
 const handlePlumbingService = async (senderNumber, location) => {
   userStates.set(senderNumber, {
     stage: "awaiting_plumber_selection",
@@ -136,7 +247,6 @@ const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
 
 const handleFormSubmission = async (senderNumber, formData) => {
   const userState = userStates.get(senderNumber);
-  // if (userState) {
   userState.stage = "awaiting_slot_selection";
   userState.formData = formData;
   userStates.set(senderNumber, userState);
@@ -152,9 +262,6 @@ const handleFormSubmission = async (senderNumber, formData) => {
       4: availableSlots[3],
     },
   });
-  // } else {
-  // return handleWelcomeMessage(senderNumber);
-  // }
 };
 
 const handleSlotSelection = async (senderNumber, selectedSlot) => {
@@ -186,11 +293,17 @@ const handlePaymentChoice = async (senderNumber, choice) => {
   //     1: redirectUrl,
   //   }),
   // });
+
+  const service = serviceConfig[userState.selectedService];
+  const provider = service.providers.find(
+    (p) => p.key === userState.selectedProvider
+  );
+
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_BOOKING_CONFIRMATION_TEMPLATE_ID,
     variables: {
-      1: plumbers[parseInt(userState?.selectedPlumber.split("_")[1]) - 1]?.name,
+      1: provider.name,
       2: userState?.formData?.preferredDate,
       3: availableSlots[parseInt(userState?.selectedSlot.split("_")[1]) - 1],
       4: choice === "pay_now" ? "Payment Pending" : "Pay at Service",
@@ -237,14 +350,11 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
         latitude: req.body.Latitude,
         longitude: req.body.Longitude,
       };
-      switch (userState.selectedService) {
-        case "service_1":
-          return handlePlumbingService(senderNumber, location);
-        case "service_2":
-          return handleElectricService(senderNumber, location);
-        default:
-          return handleDefaultResponse(senderNumber);
-      }
+      return handleServiceProviders(
+        senderNumber,
+        location,
+        userState.selectedService
+      );
     }
 
     if (userState.stage === "awaiting_location") {
@@ -254,8 +364,8 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
       });
     }
 
-    if (userState.stage === "awaiting_plumber_selection" && req.body.ListId) {
-      return handlePlumberSelection(senderNumber, req.body.ListId);
+    if (userState.stage === "awaiting_provider_selection" && req.body.ListId) {
+      return handleProviderSelection(senderNumber, req.body.ListId);
     }
 
     if (userState.stage === "awaiting_slot_selection" && req.body.ListId) {
