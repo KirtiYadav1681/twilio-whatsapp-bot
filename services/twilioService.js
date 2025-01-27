@@ -1,6 +1,10 @@
 const twilio = require("twilio");
 const config = require("../config/twilio.config");
 const templates = require("../constants/messageTemplates");
+const axios = require("axios");
+
+const mediaLink =
+  "https://scontent.fidr4-1.fna.fbcdn.net/v/t45.5328-4/473220313_916799780569075_8624869622659393500_n.jpg?stp=c2.115.476.249a_dst-jpg_p480x480_tt6&_nc_cat=103&ccb=1-7&_nc_sid=657aed&_nc_ohc=fHpqqpVo2oUQ7kNvgHp4Fqq&_nc_zt=23&_nc_ht=scontent.fidr4-1.fna&_nc_gid=A9Rk1Xr6Aout6dkLSRCS3Xq&oh=00_AYDgRYRZV1GgF-AdY11TtZeaeqTnBXDq4_gX7Hp5uB-b6w&oe=67966C0E";
 
 const serviceConfig = {
   service_1: {
@@ -102,6 +106,7 @@ const sendMessage = async ({ to, body, sid, variables }) => {
     const messageParams = {
       from: config.fromNumber,
       to: to,
+      // locale: "en_US",
     };
 
     if (sid) {
@@ -113,22 +118,84 @@ const sendMessage = async ({ to, body, sid, variables }) => {
       messageParams.body = body;
     }
 
+    console.log("messageParams: ", messageParams);
+
     return await client.messages.create(messageParams);
   } catch (error) {
-    console.error("Error sending message:", error);
+    console.log("Error sending message:", error);
     throw new Error(`Failed to send message: ${error.message}`);
   }
 };
 
+// const createCatalogContent = async () => {
+//   try {
+//     const response = await axios.post(
+//       `https://content.twilio.com/v1/Content`,
+//       {
+//         friendlyName: "Catalog - all products",
+//         language: "en",
+//         variables: {
+//           1: "menu_title",
+//           2: "menu_name",
+//         },
+//         types: {
+//           "twilio/catalog": {
+//             id: "1368966904276860", // Your catalog ID
+//             title: "The Menu: {{1}}",
+//             body: "Hi, check out this menu {{2}}",
+//             subtitle: "Great deals",
+//             thumbnail_item_id: "bf7ogzov9k", // Your product ID
+//           },
+//         },
+//       },
+//       {
+//         auth: {
+//           username: process.env.TWILIO_ACCOUNT_SID,
+//           password: process.env.TWILIO_AUTH_TOKEN,
+//         },
+//       }
+//     );
+
+//     return response.data.sid;
+//   } catch (error) {
+//     console.error("Error creating catalog content:", error);
+//     throw error;
+//   }
+// };
+
 const handleWelcomeMessage = async (senderNumber) => {
   userStates.set(senderNumber, { stage: "awaiting_service_selection" });
+  // try {
+  //   // const catalogContentSid = await createCatalogContent();
+
+  //   const messageParams = {
+  //     from: config.fromNumber,
+  //     to: senderNumber,
+  //     contentType: "twilio/catalog",
+  //     contentSid: "HX4c14f7240984ac4c4bb1cebe195a7a74",
+  //     contentVariables: JSON.stringify({
+  //       1: "Our Services",
+  //       2: "Service Catalog",
+  //     }),
+  //   };
+
+  //   return await client.messages.create(messageParams);
+  // } catch (error) {
+  //   console.log("Error sending catalog:", error);
+  //   throw new Error(`Failed to send catalog: ${error.message}`);
+  // }
+
+  //   sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
 
   return sendMessage({
     to: senderNumber,
-    sid: process.env.TWILIO_SERVICE_TEMPLATE_ID,
-    variables: {
-      1: senderNumber.split(":")[1],
-    },
+    // sid: process.env.TWILIO_SERVICE_TEMPLATE_ID,
+    sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
+
+    // variables: catalogVariables,
+    // variables: {
+    //   1: senderNumber.split(":")[1],
+    // },
   });
 };
 

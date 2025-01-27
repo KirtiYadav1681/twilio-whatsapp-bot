@@ -17,7 +17,7 @@ const handleWebhook = async (req, res) => {
       message: "Response sent",
     });
   } catch (error) {
-    console.error("Error in handleWebhook:", error);
+    console.log("Error in handleWebhook:", error);
     return res.status(500).json({
       status: "error",
       message: "Error processing message",
