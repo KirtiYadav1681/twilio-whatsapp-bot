@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const messageController = require("../controllers/messageController");
-const subaccountController = require("../controllers/subaccountController");
+const subaccountController = require("../controllers/subAccountController");
 
 router.post("/webhook", messageController.handleWebhook);
 router.get("/", (req, res) => res.status(200).send("Server is running!"));
