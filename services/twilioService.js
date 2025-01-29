@@ -118,8 +118,6 @@ const sendMessage = async ({ to, body, sid, variables }) => {
       messageParams.body = body;
     }
 
-    console.log("messageParams: ", messageParams);
-
     return await client.messages.create(messageParams);
   } catch (error) {
     console.log("Error sending message:", error);
@@ -127,75 +125,22 @@ const sendMessage = async ({ to, body, sid, variables }) => {
   }
 };
 
-// const createCatalogContent = async () => {
-//   try {
-//     const response = await axios.post(
-//       `https://content.twilio.com/v1/Content`,
-//       {
-//         friendlyName: "Catalog - all products",
-//         language: "en",
-//         variables: {
-//           1: "menu_title",
-//           2: "menu_name",
-//         },
-//         types: {
-//           "twilio/catalog": {
-//             id: "1368966904276860", // Your catalog ID
-//             title: "The Menu: {{1}}",
-//             body: "Hi, check out this menu {{2}}",
-//             subtitle: "Great deals",
-//             thumbnail_item_id: "bf7ogzov9k", // Your product ID
-//           },
-//         },
-//       },
-//       {
-//         auth: {
-//           username: process.env.TWILIO_ACCOUNT_SID,
-//           password: process.env.TWILIO_AUTH_TOKEN,
-//         },
-//       }
-//     );
-
-//     return response.data.sid;
-//   } catch (error) {
-//     console.error("Error creating catalog content:", error);
-//     throw error;
-//   }
-// };
-
 const handleWelcomeMessage = async (senderNumber) => {
   userStates.set(senderNumber, { stage: "awaiting_service_selection" });
-  // try {
-  //   // const catalogContentSid = await createCatalogContent();
-
-  //   const messageParams = {
-  //     from: config.fromNumber,
-  //     to: senderNumber,
-  //     contentType: "twilio/catalog",
-  //     contentSid: "HX4c14f7240984ac4c4bb1cebe195a7a74",
-  //     contentVariables: JSON.stringify({
-  //       1: "Our Services",
-  //       2: "Service Catalog",
-  //     }),
-  //   };
-
-  //   return await client.messages.create(messageParams);
-  // } catch (error) {
-  //   console.log("Error sending catalog:", error);
-  //   throw new Error(`Failed to send catalog: ${error.message}`);
-  // }
-
-  //   sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
-
   return sendMessage({
     to: senderNumber,
-    // sid: process.env.TWILIO_SERVICE_TEMPLATE_ID,
-    sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
+    sid: process.env.TWILIO_SERVICE_TEMPLATE_ID,
+    variables: {
+      1: senderNumber.split(":")[1],
+    },
+  });
+};
 
-    // variables: catalogVariables,
-    // variables: {
-    //   1: senderNumber.split(":")[1],
-    // },
+const handleViewCatalog = async (senderNumber) => {
+  userStates.set(senderNumber, { stage: "awaiting_service_selection" });
+  return sendMessage({
+    to: senderNumber,
+    sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
   });
 };
 
@@ -237,6 +182,7 @@ const handleServiceProviders = async (senderNumber, location, serviceType) => {
   const providers = service.providers;
   return sendMessage({
     to: senderNumber,
+    // sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
     sid: service.serviceTemplateId,
     variables: {
       1: providers[0].name,
@@ -400,7 +346,9 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
     if (msg.includes("hello") || msg.includes("hi")) {
       return handleWelcomeMessage(senderNumber);
     }
-
+    if (msg.toLowerCase() === "view catalog") {
+      return handleViewCatalog(senderNumber);
+    }
     if (req.body.ListId && userState.stage === "awaiting_service_selection") {
       userState.selectedService = req.body.ListId;
       userState.stage = "awaiting_location";

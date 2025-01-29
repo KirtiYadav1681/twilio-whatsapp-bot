@@ -160,8 +160,8 @@ const submitBusinessProfileController = async (req, res) => {
       req.body.subaccountid,
       req.body.subaccounttoken
     );
-    // const serviceSid = req.body.serviceSid;
-    const serviceSid = process.env.TWILIO_WHATSAPP_BUSINESS_API_SERVICE_ID;
+    const serviceSid = req.body.servicesid;
+    // const serviceSid = process.env.TWILIO_WHATSAPP_BUSINESS_API_SERVICE_ID;
     const businessName = req.body.businessName;
     const businessDescription = req.body.businessDescription;
 
@@ -202,42 +202,51 @@ const createAutopilotAssistantController = async (req, res) => {
   }
 };
 
+const createMessagingServiceSidController = async (req, res) => {
+  try {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const client = require("twilio")(accountSid, authToken);
+
+    const messagingService = await client.messaging.v1.services
+      .create({
+        friendlyName: "My Messaging Service",
+      });
+
+    const messagingServiceSid = messagingService.sid;
+
+    // Store the Messaging Service SID in an environment variable or a secure storage location
+    process.env.TWILIO_MESSAGING_SERVICE_SID = messagingServiceSid;
+
+    res.status(201).json({ message: "Messaging Service created successfully", messagingService });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error creating Messaging Service" });
+  }
+}
 const setUpMessageTemplatesController = async (req, res) => {
   try {
-    const subaccountSid = req.body.subaccountSid;
-    const serviceSid = process.env.TWILIO_WHATSAPP_BUSINESS_API_SERVICE_ID;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const client = require("twilio")(accountSid, authToken);
+
     const templateName = req.body.templateName;
     const templateBody = req.body.templateBody;
+    const language = req.body.language;
 
-    const subaccountClient = new Twilio(
-      subaccountSid,
-      req.body.subaccountToken
-    );
+    const template = await client.templates
+      .create({
+        name: templateName,
+        templateBody: templateBody,
+        language: language,
+      });
 
-    // const template = await subaccountClient.messaging.messageTemplates.create({
-    //   name: templateName,
-    //   body: templateBody,
-    // });
-
-    const template = await client.messaging.messageTemplates.create({
-      name: templateName,
-      body: templateBody,
-    });
-
-    console.log("template: ", template);
-
-    res.status(201).json({
-      message: "Message template set up",
-      templateSid: template.sid,
-    });
+    res.status(201).json({ message: "Message template created successfully", template });
   } catch (error) {
-    console.error("Error setting up message template:", error);
-    res.status(400).json({
-      message: "Error setting up message template",
-      error: error.message,
-    });
+    console.error(error);
+    res.status(500).json({ message: "Error creating message template" });
   }
-};
+}
 
 const configureWebhookController = async (req, res) => {
   try {
@@ -310,6 +319,7 @@ module.exports = {
   submitBusinessProfileController,
   configureWebhookController,
   whatsappIncomingController,
+  createMessagingServiceSidController,
   setUpMessageTemplatesController,
   createAutopilotAssistantController
 };
