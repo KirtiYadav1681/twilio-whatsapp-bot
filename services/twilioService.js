@@ -1,11 +1,9 @@
 const twilio = require("twilio");
 const config = require("../config/twilio.config");
 const templates = require("../constants/messageTemplates");
-const axios = require("axios");
+const isValidDate = require("../utils/utilityFunctions");
 
-const mediaLink =
-  "https://scontent.fidr4-1.fna.fbcdn.net/v/t45.5328-4/473220313_916799780569075_8624869622659393500_n.jpg?stp=c2.115.476.249a_dst-jpg_p480x480_tt6&_nc_cat=103&ccb=1-7&_nc_sid=657aed&_nc_ohc=fHpqqpVo2oUQ7kNvgHp4Fqq&_nc_zt=23&_nc_ht=scontent.fidr4-1.fna&_nc_gid=A9Rk1Xr6Aout6dkLSRCS3Xq&oh=00_AYDgRYRZV1GgF-AdY11TtZeaeqTnBXDq4_gX7Hp5uB-b6w&oe=67966C0E";
-
+const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
 const serviceConfig = {
   service_1: {
     key: "plumbing",
@@ -136,6 +134,13 @@ const handleWelcomeMessage = async (senderNumber) => {
   });
 };
 
+const handleLocationRequest = async (senderNumber, selectedService) => {
+  return sendMessage({
+    to: senderNumber,
+    body: "Please share your location so we can find the nearest service provider.",
+  });
+};
+
 const handleViewCatalog = async (senderNumber) => {
   userStates.set(senderNumber, { stage: "awaiting_service_selection" });
   return sendMessage({
@@ -143,29 +148,6 @@ const handleViewCatalog = async (senderNumber) => {
     sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
   });
 };
-
-const handleLocationRequest = async (senderNumber, selectedService) => {
-  return sendMessage({
-    to: senderNumber,
-    body: "Please share your location so we can find the nearest service provider.",
-  });
-};
-const plumbers = [
-  {
-    id: 1,
-    name: "Plumber 1",
-    key: "plumber_1",
-    price: "$100",
-    rating: "4.2⭐",
-  },
-  {
-    id: 2,
-    name: "Plumber 2",
-    key: "plumber_2",
-    price: "$150",
-    rating: "4.7⭐",
-  },
-];
 
 const handleServiceProviders = async (senderNumber, location, serviceType) => {
   const service = serviceConfig[serviceType];
@@ -200,75 +182,46 @@ const handleServiceProviders = async (senderNumber, location, serviceType) => {
 const handleProviderSelection = async (senderNumber, providerId) => {
   const userState = userStates.get(senderNumber);
   userState.selectedProvider = providerId;
-  userState.stage = "awaiting_form_submission";
+  userState.stage = "awaiting_date";
   userStates.set(senderNumber, userState);
 
-  const formUrl = `${process.env.SERVER_URL}/form?number=${encodeURIComponent(
-    senderNumber
-  )}`;
-
   return sendMessage({
     to: senderNumber,
-    sid: process.env.TWILIO_FORM_TEMPLATE_ID,
-    variables: {
-      1: formUrl,
-    },
-  });
-};
-const handlePlumbingService = async (senderNumber, location) => {
-  userStates.set(senderNumber, {
-    stage: "awaiting_plumber_selection",
-    selectedService: "plumbing",
-    location,
-  });
-
-  return sendMessage({
-    to: senderNumber,
-    sid: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
-    variables: {
-      1: plumbers[0].name,
-      2: plumbers[0].key,
-      3: plumbers[0].price,
-      4: plumbers[0].rating,
-      5: plumbers[1].name,
-      6: plumbers[1].key,
-      7: plumbers[1].price,
-      8: plumbers[1].rating,
-    },
+    body: "Please provide your preferred date for the service in DD/MM/YYYY format",
   });
 };
 
-const handlePlumberSelection = async (senderNumber, plumberId) => {
+const handleDateSubmission = async (senderNumber, dateString) => {
   const userState = userStates.get(senderNumber);
-  userState.selectedPlumber = plumberId;
-  userState.stage = "awaiting_form_submission";
+
+  if (!isValidDate.isValidDate(dateString)) {
+    return sendMessage({
+      to: senderNumber,
+      body: "Invalid date format or past date. Please provide a valid future date in DD/MM/YYYY format",
+    });
+  }
+
+  userState.preferredDate = dateString;
+  userState.stage = "awaiting_service_address";
   userStates.set(senderNumber, userState);
-  const formUrl = `${process.env.SERVER_URL}/form?number=${encodeURIComponent(
-    senderNumber
-  )}`;
 
   return sendMessage({
     to: senderNumber,
-    sid: process.env.TWILIO_FORM_TEMPLATE_ID,
-    variables: {
-      1: formUrl,
-    },
+    body: "Please provide the exact address where you need the service to be performed",
   });
 };
 
-const availableSlots = ["10:00 AM", "11:00 AM", "2:00 PM", "4:00 PM"];
-
-const handleFormSubmission = async (senderNumber, formData) => {
+const handleServiceAddressSubmission = async (senderNumber, address) => {
   const userState = userStates.get(senderNumber);
+  userState.serviceAddress = address; 
   userState.stage = "awaiting_slot_selection";
-  userState.formData = formData;
   userStates.set(senderNumber, userState);
 
   return sendMessage({
     to: senderNumber,
     sid: process.env.TWILIO_SLOTS_TEMPLATE_ID,
     variables: {
-      date: formData.preferredDate,
+      date: userState.preferredDate,
       1: availableSlots[0],
       2: availableSlots[1],
       3: availableSlots[2],
@@ -317,19 +270,33 @@ const handlePaymentChoice = async (senderNumber, choice) => {
     sid: process.env.TWILIO_BOOKING_CONFIRMATION_TEMPLATE_ID,
     variables: {
       1: provider.name,
-      2: userState?.formData?.preferredDate,
+      2: userState?.preferredDate,
       3: availableSlots[parseInt(userState?.selectedSlot.split("_")[1]) - 1],
       4: choice === "pay_now" ? "Payment Pending" : "Pay at Service",
     },
   });
 };
 
-const handleElectricService = async (senderNumber, location) => {
-  return sendMessage({
-    to: senderNumber,
-    sid: process.env.TWILIO_ELECTRIC_SERVICE_TEMPLATE_ID,
-  });
-};
+
+// const handleServiceProviders = async (senderNumber, location, serviceType) => {
+//   const service = serviceConfig[serviceType];
+//   if (!service) {
+//     return handleDefaultResponse(senderNumber);
+//   }
+
+//   userStates.set(senderNumber, {
+//     stage: "awaiting_catalog_selection",
+//     selectedService: serviceType,
+//     location,
+//   });
+
+//   return sendMessage({
+//     to: senderNumber,
+//     sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
+//   });
+// };
+
+
 
 const handleDefaultResponse = async (senderNumber) => {
   return sendMessage({
@@ -343,55 +310,67 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
     const msg = incomingMsg.toLowerCase();
     const userState = userStates.get(senderNumber) || { stage: "new" };
 
-    if (msg.includes("hello") || msg.includes("hi")) {
+    // First handle all state-specific flows
+    switch (userState.stage) {
+      case "awaiting_service_selection":
+        if (req.body.ListId) {
+          userState.selectedService = req.body.ListId;
+          userState.stage = "awaiting_location";
+          userStates.set(senderNumber, userState);
+          return handleLocationRequest(senderNumber, req.body.ListId);
+        }
+        break;
+
+      case "awaiting_location":
+        if (req.body.Latitude && req.body.Longitude) {
+          const location = {
+            latitude: req.body.Latitude,
+            longitude: req.body.Longitude,
+          };
+          return handleServiceProviders(
+            senderNumber,
+            location,
+            userState.selectedService
+          );
+        }
+        return sendMessage({
+          to: senderNumber,
+          body: "Please share your location to proceed with the service request.",
+        });
+
+      case "awaiting_provider_selection":
+        if (req.body.ListId) {
+          return handleProviderSelection(senderNumber, req.body.ListId);
+        }
+        break;
+
+      case "awaiting_date":
+        return handleDateSubmission(senderNumber, incomingMsg.trim());
+
+      case "awaiting_service_address":
+        return handleServiceAddressSubmission(senderNumber, incomingMsg.trim());
+
+      case "awaiting_slot_selection":
+        if (req.body.ListId) {
+          return handleSlotSelection(senderNumber, req.body.ListId);
+        }
+        break;
+
+      case "awaiting_payment_choice":
+        if (req.body.ButtonPayload) {
+          return handlePaymentChoice(senderNumber, req.body.ButtonPayload);
+        }
+        break;
+    }
+
+    // Only check for greetings if we're in a new state or none of the above conditions matched
+    if (userState.stage === "new" && (msg.includes("hello") || msg.includes("hi"))) {
       return handleWelcomeMessage(senderNumber);
     }
-    if (msg.toLowerCase() === "view catalog") {
+
+    // Handle view catalog command
+    if (msg === "view catalog") {
       return handleViewCatalog(senderNumber);
-    }
-    if (req.body.ListId && userState.stage === "awaiting_service_selection") {
-      userState.selectedService = req.body.ListId;
-      userState.stage = "awaiting_location";
-      userStates.set(senderNumber, userState);
-      return handleLocationRequest(senderNumber, req.body.ListId);
-    }
-
-    if (
-      req.body.Latitude &&
-      req.body.Longitude &&
-      userState.stage === "awaiting_location"
-    ) {
-      const location = {
-        latitude: req.body.Latitude,
-        longitude: req.body.Longitude,
-      };
-      return handleServiceProviders(
-        senderNumber,
-        location,
-        userState.selectedService
-      );
-    }
-
-    if (userState.stage === "awaiting_location") {
-      return sendMessage({
-        to: senderNumber,
-        body: "Please share your location to proceed with the service request.",
-      });
-    }
-
-    if (userState.stage === "awaiting_provider_selection" && req.body.ListId) {
-      return handleProviderSelection(senderNumber, req.body.ListId);
-    }
-
-    if (userState.stage === "awaiting_slot_selection" && req.body.ListId) {
-      return handleSlotSelection(senderNumber, req.body.ListId);
-    }
-
-    if (
-      userState.stage === "awaiting_payment_choice" &&
-      req.body.ButtonPayload
-    ) {
-      return handlePaymentChoice(senderNumber, req.body.ButtonPayload);
     }
 
     return handleDefaultResponse(senderNumber);
@@ -400,6 +379,7 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
     throw error;
   }
 };
+
 const checkClientStatus = () => {
   try {
     if (!client) {
@@ -421,14 +401,11 @@ const formatPhoneNumber = (number) => {
 module.exports = {
   sendMessage,
   handleIncomingMessage,
-  handleFormSubmission,
   checkClientStatus,
   formatPhoneNumber,
   validateMessageParams,
   handlers: {
     handleWelcomeMessage,
-    handlePlumbingService,
-    handleElectricService,
     handleDefaultResponse,
   },
 };
