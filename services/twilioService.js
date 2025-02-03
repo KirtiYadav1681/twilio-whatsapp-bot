@@ -8,6 +8,26 @@ const serviceConfig = {
   service_1: {
     key: "plumbing",
     serviceTemplateId: process.env.TWILIO_PLUMBING_SERVICE_TEMPLATE_ID,
+    subCategories: [
+      {
+        id: 1,
+        name: "Commercial Plumbing",
+        key: "commercial_plumbing",
+        description: "Commercial plumbing services for offices & restaurants.",
+      },
+      {
+        id: 2,
+        name: "Drains",
+        key: "drains",
+        description: "Clear clogged drains & perform drain maintenance.",
+      },
+      {
+        id: 3,
+        name: "Gas Fittings",
+        key: "gas_fittings",
+        description: "Install, repair & maintain gas fittings.",
+      },
+    ],
     providers: [
       {
         id: 1,
@@ -28,6 +48,26 @@ const serviceConfig = {
   service_2: {
     key: "electrical",
     serviceTemplateId: process.env.TWILIO_ELECTRICAL_SERVICE_TEMPLATE_ID,
+    subCategories: [
+      {
+        id: 1,
+        name: "Residential Electrical",
+        key: "residential_electrical",
+        description: "Residential electrical services & repairs.",
+      },
+      {
+        id: 2,
+        name: "Commercial Electrical",
+        key: "commercial_electrical",
+        description: "Commercial electrical services & repairs.",
+      },
+      {
+        id: 3,
+        name: "Electrical Repairs",
+        key: "electrical_repairs",
+        description: "Repair faulty wiring, outlets & circuit breakers.",
+      },
+    ],
     providers: [
       {
         id: 1,
@@ -46,8 +86,28 @@ const serviceConfig = {
     ],
   },
   service_3: {
-    key: "ac-srvice",
+    key: "ac-service",
     serviceTemplateId: process.env.TWILIO_AC_SERVICE_TEMPLATE_ID,
+    subCategories: [
+      {
+        id: 1,
+        name: "AC Installation",
+        key: "ac_installation",
+        description: "Install new AC units for homes & offices.",
+      },
+      {
+        id: 2,
+        name: "AC Repair",
+        key: "ac_repair",
+        description: "Repair faulty AC units & fix cooling issues.",
+      },
+      {
+        id: 3,
+        name: "AC Maintenance",
+        key: "ac_maintenance",
+        description: "Regular AC maintenance for optimal performance.",
+      },
+    ],
     providers: [
       {
         id: 1,
@@ -58,7 +118,7 @@ const serviceConfig = {
       },
       {
         id: 2,
-        name: "AC Technician 1",
+        name: "AC Technician 2",
         key: "ac_technician_2",
         price: "$90",
         rating: "4.6⭐",
@@ -66,7 +126,6 @@ const serviceConfig = {
     ],
   },
 };
-
 const userStates = new Map();
 
 const initializeTwilioClient = () => {
@@ -104,7 +163,6 @@ const sendMessage = async ({ to, body, sid, variables }) => {
     const messageParams = {
       from: config.fromNumber,
       to: to,
-      // locale: "en_US",
     };
 
     if (sid) {
@@ -115,7 +173,6 @@ const sendMessage = async ({ to, body, sid, variables }) => {
     } else {
       messageParams.body = body;
     }
-
     return await client.messages.create(messageParams);
   } catch (error) {
     console.log("Error sending message:", error);
@@ -164,7 +221,6 @@ const handleServiceProviders = async (senderNumber, location, serviceType) => {
   const providers = service.providers;
   return sendMessage({
     to: senderNumber,
-    // sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
     sid: service.serviceTemplateId,
     variables: {
       1: providers[0].name,
@@ -213,7 +269,7 @@ const handleDateSubmission = async (senderNumber, dateString) => {
 
 const handleServiceAddressSubmission = async (senderNumber, address) => {
   const userState = userStates.get(senderNumber);
-  userState.serviceAddress = address; 
+  userState.serviceAddress = address;
   userState.stage = "awaiting_slot_selection";
   userStates.set(senderNumber, userState);
 
@@ -245,20 +301,9 @@ const handleSlotSelection = async (senderNumber, selectedSlot) => {
 
 const handlePaymentChoice = async (senderNumber, choice) => {
   const userState = userStates.get(senderNumber);
-  // const redirectUrl =
-  //   choice === "pay_now"
-  //     ? process.env.PAYMENT_GATEWAY_URL
-  //     : process.env.BOOKING_CONFIRMATION_URL;
   userState.stage = "booking_completed";
   userState.paymentChoice = choice;
   userStates.set(senderNumber, userState);
-  // await sendMessage({
-  //   to: senderNumber,
-  //   sid: process.env.TWILIO_REDIRECT_TEMPLATE_ID,
-  //   variables: JSON.stringify({
-  //     1: redirectUrl,
-  //   }),
-  // });
 
   const service = serviceConfig[userState.selectedService];
   const provider = service.providers.find(
@@ -277,26 +322,53 @@ const handlePaymentChoice = async (senderNumber, choice) => {
   });
 };
 
+const handleServiceSelection = async (senderNumber, selectedService) => {
+  const service = serviceConfig[selectedService];
+  if (!service) {
+    return handleDefaultResponse(senderNumber);
+  }
 
-// const handleServiceProviders = async (senderNumber, location, serviceType) => {
-//   const service = serviceConfig[serviceType];
-//   if (!service) {
-//     return handleDefaultResponse(senderNumber);
-//   }
+  userStates.set(senderNumber, {
+    stage: "awaiting_sub_category_selection",
+    selectedService,
+  });
 
-//   userStates.set(senderNumber, {
-//     stage: "awaiting_catalog_selection",
-//     selectedService: serviceType,
-//     location,
-//   });
+  const subCategories = service.subCategories;
+  const subCategoryOptions = subCategories.map((category) => ({
+    label: category.name,
+    value: category.key,
+    description: category.description,
+  }));
 
-//   return sendMessage({
-//     to: senderNumber,
-//     sid: process.env.TWILIO_PLUMBING_SERVICE_CATALOG,
-//   });
-// };
+  return sendMessage({
+    to: senderNumber,
+    sid: process.env.TWILIO_SUB_CATEGORY_TEMPLATE_ID,
+    variables: {
+      1: service.key,
+      2: subCategoryOptions[0].label,
+      3: subCategoryOptions[0].value,
+      4: subCategoryOptions[0].description,
+      5: subCategoryOptions[1].label,
+      6: subCategoryOptions[1].value,
+      7: subCategoryOptions[1].description,
+      8: subCategoryOptions[2].label,
+      9: subCategoryOptions[2].value,
+      10: subCategoryOptions[2].description,
+    },
+  });
+};
 
+const handleSubCategorySelection = async (
+  senderNumber,
+  selectedSubCategory
+) => {
+  const userState = userStates.get(senderNumber);
+  userState.selectedSubCategory = selectedSubCategory;
+  userState.stage = "awaiting_location";
+  userStates.set(senderNumber, userState);
 
+  return handleLocationRequest(senderNumber, userState.selectedService);
+};
 
 const handleDefaultResponse = async (senderNumber) => {
   return sendMessage({
@@ -310,14 +382,15 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
     const msg = incomingMsg.toLowerCase();
     const userState = userStates.get(senderNumber) || { stage: "new" };
 
-    // First handle all state-specific flows
     switch (userState.stage) {
       case "awaiting_service_selection":
         if (req.body.ListId) {
-          userState.selectedService = req.body.ListId;
-          userState.stage = "awaiting_location";
-          userStates.set(senderNumber, userState);
-          return handleLocationRequest(senderNumber, req.body.ListId);
+          return handleServiceSelection(senderNumber, req.body.ListId);
+        }
+        break;
+      case "awaiting_sub_category_selection":
+        if (req.body.ListId) {
+          return handleSubCategorySelection(senderNumber, req.body.ListId);
         }
         break;
 
@@ -363,12 +436,13 @@ const handleIncomingMessage = async (req, incomingMsg, senderNumber) => {
         break;
     }
 
-    // Only check for greetings if we're in a new state or none of the above conditions matched
-    if (userState.stage === "new" && (msg.includes("hello") || msg.includes("hi"))) {
+    if (
+      userState.stage === "new" &&
+      (msg.includes("hello") || msg.includes("hi"))
+    ) {
       return handleWelcomeMessage(senderNumber);
     }
 
-    // Handle view catalog command
     if (msg === "view catalog") {
       return handleViewCatalog(senderNumber);
     }
