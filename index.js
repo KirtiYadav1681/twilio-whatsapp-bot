@@ -22,6 +22,10 @@ app.get("/form", (req, res) => {
   res.render("form", { number: senderNumber });
 });
 
+app.get("/merchant-onboard", (req, res) => {
+  res.render("onboard");
+});
+
 const PORT = process.env.PORT || 8888;
 app.listen(PORT, () => {
   console.log(`Server is running on port: ${PORT}`);
